@@ -29,6 +29,11 @@ public class OrderService {
     private OrderDao dao;
 
     @Transactional
+    public void makeNewOrder(MakeOrderForm form) {
+        // TODO
+    }
+
+    @Transactional
     public boolean makeOrder(MakeOrderForm form) {
         final var maybeCustomer = customerService.findById(form.getCustomerId());
         if (maybeCustomer.isEmpty() || !form.hasValidItems()) {
@@ -134,5 +139,4 @@ public class OrderService {
         }
         return result;
     }
-
 }
