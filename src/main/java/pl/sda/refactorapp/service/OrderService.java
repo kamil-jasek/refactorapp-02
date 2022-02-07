@@ -1,5 +1,7 @@
 package pl.sda.refactorapp.service;
 
+import static java.util.UUID.randomUUID;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import pl.sda.refactorapp.annotation.Service;
 import pl.sda.refactorapp.annotation.Transactional;
 import pl.sda.refactorapp.dao.DiscountCouponsDao;
 import pl.sda.refactorapp.dao.OrderDao;
+import pl.sda.refactorapp.entity.DiscountCoupon;
 import pl.sda.refactorapp.entity.Item;
 import pl.sda.refactorapp.entity.Order;
 
@@ -36,65 +39,29 @@ public class OrderService {
     @Inject
     private OrderDao dao;
 
-    /**
-     * Create order and (optionally) apply discount coupon
-     * @param cid
-     * @param items
-     * @param coupon
-     * @return
-     */
     @Transactional
-    public boolean makeOrder(UUID cid, List<Item> items, String coupon) {
-        var result = false;
-        var optional = customerService.findById(cid);
-        if (optional.isPresent() && items != null && items.size() > 0) {
-            // validate items
-            for (var item : items) {
-                if (item.getPrice().compareTo(BigDecimal.ZERO) <= 0 ||
-                    item.getWeight() <= 0 ||
-                    item.getQuantity() < 1) {
-                    return false;
-                }
-            }
-
-            var order = new Order();
-            genId(order);
-            order.setCid(cid);
-            order.setCtime(LocalDateTime.now());
-            order.setStatus(Order.ORDER_STATUS_WAITING);
-            var itemsList = order.getItems();
-            if (itemsList == null) {
-                itemsList = new ArrayList<>();
-            }
-            itemsList.addAll(items);
-            order.setItems(itemsList);
-
-            // add discount
-            var optDiscCoupon = couponsDao.findByCode(coupon);
-            if (optDiscCoupon.isPresent()) {
-                var dc = optDiscCoupon.get();
-                if (!dc.isUsed()) {
-                    order.setDiscount(dc.getValue());
-                    dc.setUsedBy(cid);
-                    dc.setUsed(true);
-                    couponsDao.save(dc);
-                }
-            }
-
-            // calculate delivery
-            computeDelivery(items, order);
-
-            var cust = optional.get();
-
-            // save to db and send email
-            dao.save(order);
-            var sendEmail = sendEmail(cust.getEmail(),
-                "Your order is placed!",
-                "Thanks for ordering our products. Your order will be send very soon!");
-            result = sendEmail;
+    public boolean makeOrder(MakeOrderForm form) {
+        final var maybeCustomer = customerService.findById(form.getCustomerId());
+        if (maybeCustomer.isEmpty() || !form.hasValidItems()) {
+            return false;
         }
+        final var order = Order.createFrom(form);
+        couponsDao.findByCode(form.getCoupon())
+            .ifPresent(discountCoupon -> applyDiscount(order, discountCoupon));
+        order.computeDelivery();
+        dao.save(order);
+        return sendEmail(maybeCustomer.get().getEmail(),
+            "Your order is placed!",
+            "Thanks for ordering our products. Your order will be send very soon!");
+    }
 
-        return result;
+    private void applyDiscount(Order order, DiscountCoupon discountCoupon) {
+        if (!discountCoupon.isUsed()) {
+            order.setDiscount(discountCoupon.getValue());
+            discountCoupon.setUsedBy(order.getCid());
+            discountCoupon.setUsed(true);
+            couponsDao.save(discountCoupon);
+        }
     }
 
     /**
@@ -119,7 +86,7 @@ public class OrderService {
             }
 
             var order = new Order();
-            genId(order);
+            order.setId(randomUUID());
             order.setCid(cid);
             order.setCtime(LocalDateTime.now());
             order.setStatus(Order.ORDER_STATUS_WAITING);
@@ -131,7 +98,7 @@ public class OrderService {
             itemsList.addAll(items);
             order.setItems(itemsList);
 
-            computeDelivery(items, order);
+            order.computeDelivery();
 
             // save to db
             dao.save(order);
@@ -177,28 +144,6 @@ public class OrderService {
             }
         }
         return result;
-    }
-
-    private void genId(Order order) {
-        order.setId(UUID.randomUUID());
-    }
-
-    private void computeDelivery(List<Item> items, Order order) {
-        var tp = BigDecimal.ZERO;
-        var tw = 0;
-        for (Item i : items) {
-            tp = tp.add(i.getPrice().multiply(new BigDecimal(i.getQuantity()))); // tp = tp + (i.price * i.quantity)
-            tw += (i.getQuantity() * i.getWeight());
-        }
-        if (tp.compareTo(new BigDecimal(250)) > 0 && tw < 1) {
-            order.setDeliveryCost(BigDecimal.ZERO);
-        } else if (tw < 1) {
-            order.setDeliveryCost(new BigDecimal(15));
-        } else if (tw < 5) {
-            order.setDeliveryCost(new BigDecimal(35));
-        } else {
-            order.setDeliveryCost(new BigDecimal(50));
-        }
     }
 
     private boolean sendEmail(String address, String subj, String msg) {

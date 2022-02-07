@@ -69,7 +69,7 @@ class OrderServiceTest {
         final var mockedStaticTransport = Mockito.mockStatic(Transport.class);
 
         // when
-        final var result = orderService.makeOrder(customerId, items, couponCode);
+        final var result = orderService.makeOrder(new MakeOrderForm(customerId, items, couponCode));
 
         // then
         verify(couponsDao).save(discountCoupon);

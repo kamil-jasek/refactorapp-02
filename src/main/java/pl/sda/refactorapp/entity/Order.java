@@ -1,14 +1,17 @@
 package pl.sda.refactorapp.entity;
 
+import static java.util.UUID.randomUUID;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import pl.sda.refactorapp.annotation.Entity;
 import pl.sda.refactorapp.annotation.Id;
-import pl.sda.refactorapp.annotation.Inject;
 import pl.sda.refactorapp.annotation.OneToMany;
+import pl.sda.refactorapp.service.MakeOrderForm;
 
 /**
  * The customer order
@@ -38,6 +41,21 @@ public class Order {
     private int status;
 
     public BigDecimal deliveryCost;
+
+    public static Order createFrom(MakeOrderForm form) {
+        final var order = new Order();
+        order.setId(randomUUID());
+        order.setCid(form.getCustomerId());
+        order.setCtime(LocalDateTime.now());
+        order.setStatus(ORDER_STATUS_WAITING);
+        var itemsList = order.getItems();
+        if (itemsList == null) {
+            itemsList = new ArrayList<>();
+        }
+        itemsList.addAll(form.getOrderItems());
+        order.setItems(itemsList);
+        return order;
+    }
 
     public UUID getId() {
         return id;
@@ -92,8 +110,22 @@ public class Order {
         return deliveryCost;
     }
 
-    public void setDeliveryCost(BigDecimal deliveryCost) {
-        this.deliveryCost = deliveryCost;
+    public void computeDelivery() {
+        var totalPrice = BigDecimal.ZERO;
+        var totalWeight = 0;
+        for (Item i : getItems()) {
+            totalPrice = totalPrice.add(i.getPrice().multiply(new BigDecimal(i.getQuantity()))); // totalPrice = totalPrice + (i.price * i.quantity)
+            totalWeight += (i.getQuantity() * i.getWeight());
+        }
+        if (totalPrice.compareTo(new BigDecimal(250)) > 0 && totalWeight < 1) {
+            this.deliveryCost = BigDecimal.ZERO;
+        } else if (totalWeight < 1) {
+            this.deliveryCost = new BigDecimal(15);
+        } else if (totalWeight < 5) {
+            this.deliveryCost = new BigDecimal(35);
+        } else {
+            this.deliveryCost = new BigDecimal(50);
+        }
     }
 
     @Override
