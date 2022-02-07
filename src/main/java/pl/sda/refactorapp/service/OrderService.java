@@ -6,18 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 import java.util.UUID;
-import javax.mail.Authenticator;
-import javax.mail.Message;
-import javax.mail.Multipart;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
 import pl.sda.refactorapp.annotation.Inject;
 import pl.sda.refactorapp.annotation.Service;
 import pl.sda.refactorapp.annotation.Transactional;
@@ -50,7 +39,7 @@ public class OrderService {
             .ifPresent(discountCoupon -> applyDiscount(order, discountCoupon));
         order.computeDelivery();
         dao.save(order);
-        return sendEmail(maybeCustomer.get().getEmail(),
+        return MailService.sendEmail(maybeCustomer.get().getEmail(),
             "Your order is placed!",
             "Thanks for ordering our products. Your order will be send very soon!");
     }
@@ -104,7 +93,7 @@ public class OrderService {
             dao.save(order);
 
             // send email
-            final var sendEmail = sendEmail(optional.get().getEmail(),
+            final var sendEmail = MailService.sendEmail(optional.get().getEmail(),
                 "Your order is placed!",
                 "Thanks for ordering our products. Your order will be send very soon!");
             result = sendEmail;
@@ -131,11 +120,11 @@ public class OrderService {
                 var customer = customerService.findById(order.getCid()).get();
                 var emailSend = false;
                 if (status == 2) {
-                    emailSend = sendEmail(customer.getEmail(),
+                    emailSend = MailService.sendEmail(customer.getEmail(),
                         "Order status updated to sent",
                         "Your order changed status to sent. Our courier will deliver your order in 2 business days.");
                 } else if (status == 3) {
-                    emailSend = sendEmail(customer.getEmail(),
+                    emailSend = MailService.sendEmail(customer.getEmail(),
                         "Order status updated to delivered",
                         "Your order changed status to delivered. Thank you for ordering our products!");
                 }
@@ -146,41 +135,4 @@ public class OrderService {
         return result;
     }
 
-    private boolean sendEmail(String address, String subj, String msg) {
-        Properties prop = new Properties();
-        prop.put("mail.smtp.auth", true);
-        prop.put("mail.smtp.starttls.enable", "true");
-        prop.put("mail.smtp.host", System.getenv().get("MAIL_SMTP_HOST"));
-        prop.put("mail.smtp.port", System.getenv().get("MAIL_SMTP_PORT"));
-        prop.put("mail.smtp.ssl.trust", System.getenv().get("MAIL_SMTP_SSL_TRUST"));
-
-        Session session = Session.getInstance(prop, new Authenticator() {
-            @Override
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication("admin", "admin");
-            }
-        });
-
-        try {
-            Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress("no-reply@company.com"));
-            message.setRecipients(
-                Message.RecipientType.TO, InternetAddress.parse(address));
-            message.setSubject(subj);
-
-            MimeBodyPart mimeBodyPart = new MimeBodyPart();
-            mimeBodyPart.setContent(msg, "text/html");
-
-            Multipart multipart = new MimeMultipart();
-            multipart.addBodyPart(mimeBodyPart);
-
-            message.setContent(multipart);
-
-            Transport.send(message);
-            return true;
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            return false;
-        }
-    }
 }

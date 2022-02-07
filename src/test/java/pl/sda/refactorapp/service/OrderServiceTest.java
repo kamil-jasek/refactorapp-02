@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import javax.mail.Transport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -61,12 +61,7 @@ class OrderServiceTest {
         discountCoupon.setValue(0.2f);
         given(couponsDao.findByCode(couponCode)).willReturn(Optional.of(discountCoupon));
 
-        EnvHelper.setEnvironmentVariables(Map.of(
-            "MAIL_SMTP_HOST", "smtp.host",
-            "MAIL_SMTP_PORT", "22",
-            "MAIL_SMTP_SSL_TRUST", "true"
-        ));
-        final var mockedStaticTransport = Mockito.mockStatic(Transport.class);
+        mockStatic(MailService.class).when(() -> MailService.sendEmail(any(), any(), any())).thenReturn(true);
 
         // when
         final var result = orderService.makeOrder(new MakeOrderForm(customerId, items, couponCode));
@@ -81,7 +76,6 @@ class OrderServiceTest {
         assertEquals(Order.ORDER_STATUS_WAITING, order.getStatus());
         assertEquals(0.2f, order.getDiscount());
         assertEquals(new BigDecimal("35"), order.getDeliveryCost());
-        mockedStaticTransport.verify(() -> Transport.send(any()));
         assertTrue(result);
     }
 }
