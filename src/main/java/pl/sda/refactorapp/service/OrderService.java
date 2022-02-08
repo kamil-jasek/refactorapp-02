@@ -15,6 +15,7 @@ import pl.sda.refactorapp.dao.OrderDao;
 import pl.sda.refactorapp.entity.DiscountCoupon;
 import pl.sda.refactorapp.entity.Item;
 import pl.sda.refactorapp.entity.Order;
+import pl.sda.refactorapp.service.event.EventPublisher;
 import pl.sda.refactorapp.service.exception.CustomerNotExistsException;
 import pl.sda.refactorapp.service.exception.InvalidOrderItemsException;
 
@@ -30,6 +31,9 @@ public class OrderService {
     @Inject
     private OrderDao dao;
 
+    @Inject
+    private EventPublisher eventPublisher;
+
     @Transactional
     public void makeNewOrder(MakeOrderForm form) {
         if (!form.hasValidItems()) {
@@ -43,10 +47,7 @@ public class OrderService {
             .ifPresent(discountCoupon -> applyDiscount(order, discountCoupon));
         order.computeDelivery();
         dao.save(order);
-
-        MailService.sendMail(customer.getEmail(),
-            "Your order is placed!",
-            "Thanks for ordering our products. Your order will be send very soon!");
+        eventPublisher.publish(order.toOrderCreatedEvent(customer.getEmail()));
     }
 
     @Transactional

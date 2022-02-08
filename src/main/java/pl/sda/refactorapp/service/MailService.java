@@ -13,9 +13,9 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import pl.sda.refactorapp.service.exception.DomainMailException;
 
-final class MailService {
+public final class MailService {
 
-    static void sendMail(String address, String subj, String msg) {
+    public static void sendMail(String address, String subj, String msg) {
         Properties prop = new Properties();
         prop.put("mail.smtp.auth", true);
         prop.put("mail.smtp.starttls.enable", "true");

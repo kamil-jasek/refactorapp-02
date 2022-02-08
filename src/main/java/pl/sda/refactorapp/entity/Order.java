@@ -7,10 +7,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import pl.sda.refactorapp.annotation.Entity;
 import pl.sda.refactorapp.annotation.Id;
 import pl.sda.refactorapp.annotation.OneToMany;
 import pl.sda.refactorapp.service.MakeOrderForm;
+import pl.sda.refactorapp.service.event.OrderCreatedEvent;
+import pl.sda.refactorapp.service.event.OrderCreatedEvent.OrderItem;
 
 /**
  * The customer order
@@ -158,5 +161,21 @@ public class Order {
             ", status=" + status +
             ", deliveryCost=" + deliveryCost +
             '}';
+    }
+
+    public OrderCreatedEvent toOrderCreatedEvent(String email) {
+        return new OrderCreatedEvent(getId(),
+            getCid(),
+            email,
+            getItems()
+                .stream()
+                .map(item -> new OrderItem(item.getId(),
+                    item.getName(),
+                    item.getPrice(),
+                    item.getQuantity(),
+                    item.getWeight())).collect(Collectors.toList()),
+            getCtime(),
+            getDiscount(),
+            getDeliveryCost());
     }
 }

@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +25,6 @@ import pl.sda.refactorapp.entity.DiscountCoupon;
 import pl.sda.refactorapp.entity.Item;
 import pl.sda.refactorapp.entity.Order;
 import pl.sda.refactorapp.service.exception.CustomerNotExistsException;
-import pl.sda.refactorapp.service.exception.DomainMailException;
 import pl.sda.refactorapp.service.exception.InvalidOrderItemsException;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,30 +63,6 @@ class OrderServiceTest {
 
         // when & then
         assertThrows(InvalidOrderItemsException.class, () -> orderService.makeNewOrder(form));
-    }
-
-    @Test
-    void shouldThrowDomainMailException() throws Exception {
-        // given
-        final var item = new Item();
-        item.setPrice(new BigDecimal("24.00"));
-        item.setQuantity(1);
-        item.setWeight(0.2f);
-        final var customerId = randomUUID();
-        final var form = new MakeOrderForm(customerId, List.of(item), "ABC200");
-
-        final var customer = new Customer();
-        customer.setEmail("email@email.com");
-        given(customerService.findById(customerId)).willReturn(Optional.of(customer));
-
-        EnvHelper.setEnvironmentVariables(Map.of(
-            "MAIL_SMTP_HOST", "smtp.host",
-            "MAIL_SMTP_PORT", "22",
-            "MAIL_SMTP_SSL_TRUST", "false"
-        ));
-
-        // when & then
-        assertThrows(DomainMailException.class, () -> orderService.makeNewOrder(form));
     }
 
     @Test
