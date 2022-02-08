@@ -15,6 +15,8 @@ import pl.sda.refactorapp.dao.OrderDao;
 import pl.sda.refactorapp.entity.DiscountCoupon;
 import pl.sda.refactorapp.entity.Item;
 import pl.sda.refactorapp.entity.Order;
+import pl.sda.refactorapp.service.exception.CustomerNotExistsException;
+import pl.sda.refactorapp.service.exception.InvalidOrderItemsException;
 
 @Service
 public class OrderService {
@@ -30,7 +32,21 @@ public class OrderService {
 
     @Transactional
     public void makeNewOrder(MakeOrderForm form) {
-        // TODO
+        if (!form.hasValidItems()) {
+            throw new InvalidOrderItemsException("invalid order items: " + form.getOrderItems());
+        }
+        final var customer = customerService.findById(form.getCustomerId())
+            .orElseThrow(() -> new CustomerNotExistsException("customer not found: " + form.getCustomerId()));
+
+        final var order = Order.createFrom(form);
+        couponsDao.findByCode(form.getCoupon())
+            .ifPresent(discountCoupon -> applyDiscount(order, discountCoupon));
+        order.computeDelivery();
+        dao.save(order);
+
+        MailService.sendMail(customer.getEmail(),
+            "Your order is placed!",
+            "Thanks for ordering our products. Your order will be send very soon!");
     }
 
     @Transactional

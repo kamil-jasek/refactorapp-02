@@ -2,6 +2,7 @@ package pl.sda.refactorapp.service;
 
 import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -17,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pl.sda.refactorapp.dao.DiscountCouponsDao;
 import pl.sda.refactorapp.dao.OrderDao;
@@ -25,6 +25,9 @@ import pl.sda.refactorapp.entity.Customer;
 import pl.sda.refactorapp.entity.DiscountCoupon;
 import pl.sda.refactorapp.entity.Item;
 import pl.sda.refactorapp.entity.Order;
+import pl.sda.refactorapp.service.exception.CustomerNotExistsException;
+import pl.sda.refactorapp.service.exception.DomainMailException;
+import pl.sda.refactorapp.service.exception.InvalidOrderItemsException;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -40,6 +43,53 @@ class OrderServiceTest {
 
     @InjectMocks
     private OrderService orderService;
+
+    @Test
+    void shouldThrowCustomerNotExistException() {
+        // given
+        final var item = new Item();
+        item.setPrice(new BigDecimal("24.00"));
+        item.setQuantity(1);
+        item.setWeight(0.2f);
+        final var form = new MakeOrderForm(randomUUID(), List.of(item), "ABC200");
+
+        // when & then
+        assertThrows(CustomerNotExistsException.class, () -> orderService.makeNewOrder(form));
+    }
+
+    @Test
+    void shouldThrowOrderItemsInvalidException() {
+        // given
+        final var customerId = randomUUID();
+        final var form = new MakeOrderForm(customerId, List.of(), "ABC200");
+
+        // when & then
+        assertThrows(InvalidOrderItemsException.class, () -> orderService.makeNewOrder(form));
+    }
+
+    @Test
+    void shouldThrowDomainMailException() throws Exception {
+        // given
+        final var item = new Item();
+        item.setPrice(new BigDecimal("24.00"));
+        item.setQuantity(1);
+        item.setWeight(0.2f);
+        final var customerId = randomUUID();
+        final var form = new MakeOrderForm(customerId, List.of(item), "ABC200");
+
+        final var customer = new Customer();
+        customer.setEmail("email@email.com");
+        given(customerService.findById(customerId)).willReturn(Optional.of(customer));
+
+        EnvHelper.setEnvironmentVariables(Map.of(
+            "MAIL_SMTP_HOST", "smtp.host",
+            "MAIL_SMTP_PORT", "22",
+            "MAIL_SMTP_SSL_TRUST", "false"
+        ));
+
+        // when & then
+        assertThrows(DomainMailException.class, () -> orderService.makeNewOrder(form));
+    }
 
     @Test
     void shouldMakeAnOrderWithDiscountCoupon() throws Exception {
@@ -61,7 +111,8 @@ class OrderServiceTest {
         discountCoupon.setValue(0.2f);
         given(couponsDao.findByCode(couponCode)).willReturn(Optional.of(discountCoupon));
 
-        mockStatic(MailService.class).when(() -> MailService.sendEmail(any(), any(), any())).thenReturn(true);
+        final var mailServiceMockedStatic = mockStatic(MailService.class);
+        mailServiceMockedStatic.when(() -> MailService.sendEmail(any(), any(), any())).thenReturn(true);
 
         // when
         final var result = orderService.makeOrder(new MakeOrderForm(customerId, items, couponCode));
@@ -77,5 +128,7 @@ class OrderServiceTest {
         assertEquals(0.2f, order.getDiscount());
         assertEquals(new BigDecimal("35"), order.getDeliveryCost());
         assertTrue(result);
+
+        mailServiceMockedStatic.close();
     }
 }

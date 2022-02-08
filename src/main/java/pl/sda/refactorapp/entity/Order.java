@@ -4,7 +4,6 @@ import static java.util.UUID.randomUUID;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -42,19 +41,20 @@ public class Order {
 
     public BigDecimal deliveryCost;
 
+    // only for framework
+    public Order() {
+    }
+
+    public Order(UUID customerId, List<Item> orderItems) {
+        this.id = randomUUID();
+        this.cid = customerId;
+        this.items = orderItems;
+        this.ctime = LocalDateTime.now();
+        this.status = ORDER_STATUS_WAITING;
+    }
+
     public static Order createFrom(MakeOrderForm form) {
-        final var order = new Order();
-        order.setId(randomUUID());
-        order.setCid(form.getCustomerId());
-        order.setCtime(LocalDateTime.now());
-        order.setStatus(ORDER_STATUS_WAITING);
-        var itemsList = order.getItems();
-        if (itemsList == null) {
-            itemsList = new ArrayList<>();
-        }
-        itemsList.addAll(form.getOrderItems());
-        order.setItems(itemsList);
-        return order;
+        return new Order(form.getCustomerId(), form.getOrderItems());
     }
 
     public UUID getId() {
